@@ -4,12 +4,15 @@ import {
   Activity,
   CalendarDays,
   Download,
+  Dumbbell,
   FileJson,
-  Github,
+  HeartPulse,
   RotateCcw,
   Save,
+  Sparkles,
   Target,
-  Upload
+  Upload,
+  WalletCards
 } from "lucide-react";
 import {
   Bar,
@@ -99,6 +102,15 @@ const tasks: Task[] = [
 ];
 
 const palette = ["#34d399", "#60a5fa", "#f472b6", "#fbbf24", "#a78bfa", "#22d3ee"];
+const sectionIcons: Record<string, React.ReactNode> = {
+  "Basic Hygiene": <Sparkles size={18} />,
+  Fitness: <Dumbbell size={18} />,
+  Nutrition: <HeartPulse size={18} />,
+  Recovery: <Activity size={18} />,
+  Expenditure: <WalletCards size={18} />,
+  Mindset: <Target size={18} />,
+  Accountability: <Save size={18} />
+};
 const monthlyBudgets: Record<string, number> = {
   spend_protein: 6000,
   spend_fibre: 2000,
@@ -148,6 +160,14 @@ function getWeekDates(anchor: string) {
 
 function labelDate(date: string) {
   return parseDate(date).toLocaleDateString("en-IN", { weekday: "short", day: "2-digit" });
+}
+
+function longDate(date: string) {
+  return parseDate(date).toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short"
+  });
 }
 
 function makeEmptyStore(): EntryStore {
@@ -239,7 +259,7 @@ function App() {
   const initialDate = today < START_DATE ? START_DATE : today;
   const [store, setStore] = useState<EntryStore>(() => readStore());
   const [anchorDate, setAnchorDate] = useState(initialDate);
-  const [view, setView] = useState<ViewMode>("weekly");
+  const [view, setView] = useState<ViewMode>("daily");
   const [savedAt, setSavedAt] = useState("Loaded locally");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -250,7 +270,7 @@ function App() {
 
   const weekDates = useMemo(() => getWeekDates(anchorDate), [anchorDate]);
   const monthDates = useMemo(() => getMonthDates(anchorDate), [anchorDate]);
-  const visibleDates = view === "monthly" ? monthDates : weekDates;
+  const visibleDates = view === "monthly" ? monthDates : view === "daily" ? [anchorDate] : weekDates;
   const weekStats = weekDates.map((date) => ({ date: labelDate(date), ...completionForDate(store, date) }));
   const monthStats = monthDates.map((date) => ({ date, day: parseDate(date).getDate(), ...completionForDate(store, date) }));
   const sectionStats = sectionCompletion(store, visibleDates);
@@ -271,6 +291,8 @@ function App() {
       Satisfaction: numericValue(values.daily_satisfaction)
     };
   });
+  const bestCategory = [...sectionStats].sort((a, b) => b.value - a.value)[0];
+  const weekAverage = Math.round(weekStats.reduce((sum, day) => sum + day.pct, 0) / 7);
 
   function setValue(date: string, taskId: string, value: string | number | boolean) {
     setStore((current) => {
@@ -316,10 +338,10 @@ function App() {
   return (
     <main>
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Starting May 2026</p>
-          <h1>Dashboard Real</h1>
-          <p className="subtitle">Everyday goals, spending, mindset, and accountability in one local-first sheet.</p>
+        <div className="brand-block">
+          <p className="eyebrow">May 2026 accountability system</p>
+          <h1>Daily Operating Board</h1>
+          <p className="subtitle">A focused sheet for hygiene, training, food, money, mood, and follow-through.</p>
         </div>
         <div className="actions">
           <label className="date-control">
@@ -342,11 +364,25 @@ function App() {
         </div>
       </header>
 
-      <section className="hero-grid">
-        <MetricCard icon={<Target />} label="Selected Day" value={`${todayScore.pct}%`} detail={`${todayScore.done} / ${todayScore.total} tracked goals`} />
-        <MetricCard icon={<Activity />} label="Week Completed" value={`${Math.round(weekStats.reduce((sum, day) => sum + day.pct, 0) / 7)}%`} detail="Average daily completion" />
+      <section className="command-grid">
+        <article className="focus-card">
+          <div className="focus-copy">
+            <span>{longDate(anchorDate)}</span>
+            <strong>{todayScore.pct}%</strong>
+            <p>
+              {todayScore.done} of {todayScore.total} scored goals completed.
+            </p>
+          </div>
+          <div
+            className="hero-ring"
+            style={{ "--ring-value": `${todayScore.pct * 3.6}deg` } as React.CSSProperties}
+          >
+            <span>{todayScore.pct}%</span>
+          </div>
+        </article>
+        <MetricCard icon={<Activity />} label="Week Average" value={`${weekAverage}%`} detail="Across the selected week" />
+        <MetricCard icon={<Target />} label="Best Area" value={bestCategory?.name ?? "None"} detail={`${bestCategory?.value ?? 0}% this view`} />
         <MetricCard icon={<Save />} label="Storage" value="Local" detail={savedAt} />
-        <MetricCard icon={<Github />} label="Deploy" value="Pages" detail="/Dashboard_Real/" />
       </section>
 
       <nav className="tabs" aria-label="Dashboard views">
@@ -356,6 +392,8 @@ function App() {
           </button>
         ))}
       </nav>
+
+      <Spreadsheet dates={visibleDates} store={store} setValue={setValue} />
 
       <section className="dashboard-grid">
         <Panel title={view === "monthly" ? "Monthly Progress" : "Weekly Progress"} className="wide">
@@ -450,8 +488,6 @@ function App() {
           </div>
         </Panel>
       </section>
-
-      <Spreadsheet dates={visibleDates} store={store} setValue={setValue} />
     </main>
   );
 }
@@ -495,39 +531,47 @@ function Spreadsheet({
     <section className="sheet-panel">
       <div className="sheet-heading">
         <div>
-          <p className="eyebrow">Spreadsheet Entry</p>
-          <h2>Daily Goal Table</h2>
+          <p className="eyebrow">Spreadsheet entry</p>
+          <h2>{viewLabel(dates)} Goal Sheet</h2>
         </div>
-        <p>Checkboxes, numbers, ratings, spend, and notes save automatically in this browser.</p>
+        <p>{dates.length === 1 ? longDate(dates[0]) : `${dates.length} editable days`} saved locally in this browser.</p>
       </div>
       <div className="sheet-scroll">
-        <table className="goal-sheet">
+        <table className={`goal-sheet ${dates.length === 1 ? "single-day-sheet" : ""}`}>
           <thead>
             <tr>
               <th className="task-col">Goal</th>
-              <th className="type-col">Type</th>
               {dates.map((date) => (
-                <th key={date}>{labelDate(date)}</th>
+                <th key={date} className={date === formatDate(new Date()) ? "today-col" : ""}>
+                  <span>{labelDate(date)}</span>
+                  <small>{parseDate(date).toLocaleDateString("en-IN", { month: "short" })}</small>
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {Object.entries(grouped).map(([group, groupTasks]) => (
               <React.Fragment key={group}>
-                <tr className="group-row">
-                  <td colSpan={dates.length + 2}>{group}</td>
+                <tr className="group-row" data-section={groupTasks[0].section}>
+                  <td colSpan={dates.length + 1}>
+                    <span>{sectionIcons[groupTasks[0].section]}</span>
+                    <strong>{group.split(" / ")[0]}</strong>
+                    <em>{group.split(" / ")[1]}</em>
+                  </td>
                 </tr>
                 {groupTasks.map((task) => (
-                  <tr key={task.id}>
+                  <tr key={task.id} data-section={task.section}>
                     <td className="task-col">
                       <strong>{task.label}</strong>
-                      <span>{task.unit ?? task.section}</span>
+                      <span>{taskHint(task)}</span>
                     </td>
-                    <td className="type-col">{task.type}</td>
                     {dates.map((date) => {
                       const value = entryFor(store, date).values[task.id];
                       return (
-                        <td key={`${task.id}-${date}`}>
+                        <td
+                          key={`${task.id}-${date}`}
+                          className={isComplete(task, value) ? "complete-cell" : ""}
+                        >
                           <CellEditor task={task} value={value} onChange={(next) => setValue(date, task.id, next)} />
                         </td>
                       );
@@ -543,6 +587,20 @@ function Spreadsheet({
   );
 }
 
+function viewLabel(dates: string[]) {
+  if (dates.length === 1) return "Daily";
+  if (dates.length <= 7) return "Weekly";
+  return "Monthly";
+}
+
+function taskHint(task: Task) {
+  if (task.type === "check") return task.group;
+  if (task.type === "money") return "INR spend";
+  if (task.type === "rating") return "0-10 rating";
+  if (task.type === "text") return "Notes";
+  return task.unit ?? "Number";
+}
+
 function CellEditor({
   task,
   value,
@@ -556,21 +614,34 @@ function CellEditor({
     return (
       <label className="check-cell">
         <input type="checkbox" checked={value === true} onChange={(event) => onChange(event.target.checked)} />
+        <span>{value === true ? "Done" : "Mark"}</span>
       </label>
     );
   }
   if (task.type === "text") {
-    return <textarea value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} placeholder="..." />;
+    return (
+      <textarea
+        className="text-cell"
+        value={String(value ?? "")}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Write note"
+      />
+    );
   }
   return (
-    <input
-      type="number"
-      min={0}
-      max={task.type === "rating" ? 10 : undefined}
-      value={String(value ?? "")}
-      onChange={(event) => onChange(event.target.value === "" ? "" : Number(event.target.value))}
-      placeholder={task.type === "rating" ? "0-10" : task.unit ?? "0"}
-    />
+    <label className="number-cell">
+      {task.type === "money" && <span>Rs</span>}
+      <input
+        type="number"
+        min={0}
+        max={task.type === "rating" ? 10 : undefined}
+        value={String(value ?? "")}
+        onChange={(event) => onChange(event.target.value === "" ? "" : Number(event.target.value))}
+        placeholder={task.type === "rating" ? "0-10" : "0"}
+      />
+      {task.type !== "money" && task.type !== "rating" && task.unit && <span>{task.unit}</span>}
+      {task.type === "rating" && <span>/10</span>}
+    </label>
   );
 }
 
